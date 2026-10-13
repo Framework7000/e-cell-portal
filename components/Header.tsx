@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { RefreshCw, LogOut } from 'lucide-react';
+import { RefreshCw, LogOut, Link2 } from 'lucide-react';
 import type { Tab } from '@/components/Sidebar';
 
 interface Props {
@@ -13,11 +13,14 @@ interface Props {
     onRefresh: () => void;
     lastUpdated: string;
     onLogout: () => void;
+    onConfigureWhatsAppLinks?: () => void;
 }
 
 const titles: Record<Tab, { title: string; sub: string }> = {
     overview: { title: 'Executive Overview', sub: 'Real-time recruitment metrics & latest applicant breakdown' },
-    submissions: { title: 'Candidates Registry', sub: 'Comprehensive applicant tracking, evaluation & direct outreach' },
+    submissions: { title: 'Candidates Registry', sub: 'Comprehensive applicant tracking, bulk evaluations & edits' },
+    shortlisted: { title: 'Shortlisted Candidates (Send Queue)', sub: 'Automate emails with domain-specific WhatsApp group links' },
+    selected: { title: 'Selected Candidates (Domain-Wise)', sub: 'Official roster structured by domain with delivery verification' },
     analytics: { title: 'Cohort Analytics', sub: 'Domain, academic year & department distribution visualizations' },
     sync: { title: 'Cloud Sync', sub: 'Live integration status with Google Sheets' },
 };
@@ -28,6 +31,7 @@ export default function Header({
     onRefresh,
     lastUpdated,
     onLogout,
+    onConfigureWhatsAppLinks,
 }: Props) {
     const t = titles[activeTab] || titles.overview;
 
@@ -61,10 +65,22 @@ export default function Header({
 
                 {/* Status & Action Buttons */}
                 <div className="flex items-center gap-2.5">
+                    {/* Domain WhatsApp Links Button */}
+                    {onConfigureWhatsAppLinks && (
+                        <button
+                            onClick={onConfigureWhatsAppLinks}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition shadow-2xs"
+                            title="Configure domain WhatsApp invite links"
+                        >
+                            <Link2 size={13} className="text-emerald-600" />
+                            <span className="hidden sm:inline">WhatsApp Links</span>
+                        </button>
+                    )}
+
                     {/* Live Sheet Status Pill */}
                     <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] text-emerald-800 font-medium">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>Google Sheets Sync</span>
+                        <span>Google Sheets Live</span>
                         <span className="mono-num text-emerald-700/80 text-[10px]">• {lastUpdated}</span>
                     </div>
 
@@ -72,24 +88,25 @@ export default function Header({
                     <button
                         onClick={onRefresh}
                         disabled={isRefreshing}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg disabled:opacity-60 transition shadow-2xs"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg disabled:opacity-60 transition shadow-2xs cursor-pointer"
                         aria-label="Refresh Data"
                         title="Sync with Google Sheets"
                     >
                         <RefreshCw
                             size={14}
-                            className={isRefreshing ? 'animate-spin text-[#EA580C]' : 'text-slate-600'}
+                            className={isRefreshing ? 'animate-spin text-[#EA580C]' : 'text-slate-500'}
                         />
-                        <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
+                        <span className="hidden sm:inline font-semibold">Sync</span>
                     </button>
 
-                    {/* Logout Button (Header mobile/quick action) */}
+                    {/* Sign out */}
                     <button
                         onClick={onLogout}
-                        className="md:hidden flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-lg transition"
-                        aria-label="Sign out"
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Sign Out"
+                        aria-label="Sign Out"
                     >
-                        <LogOut size={14} />
+                        <LogOut size={16} />
                     </button>
                 </div>
             </div>

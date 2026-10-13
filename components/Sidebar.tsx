@@ -2,37 +2,55 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { LayoutDashboard, Users, PieChart, LogOut, RefreshCw, CheckCircle2, ShieldCheck } from 'lucide-react';
+import {
+    LayoutDashboard,
+    Users,
+    PieChart,
+    LogOut,
+    RefreshCw,
+    CheckCircle2,
+    ShieldCheck,
+    Send,
+    Link2
+} from 'lucide-react';
 
-export type Tab = 'overview' | 'submissions' | 'analytics' | 'sync';
+export type Tab = 'overview' | 'submissions' | 'shortlisted' | 'selected' | 'analytics' | 'sync';
 
 interface Props {
     activeTab: Tab;
     onTabChange: (t: Tab) => void;
     totalCount: number;
     pendingCount: number;
+    shortlistedCount?: number;
+    selectedCount?: number;
     isRefreshing: boolean;
     onRefresh: () => void;
     lastUpdated: string;
     onLogout: () => void;
+    onConfigureWhatsAppLinks?: () => void;
 }
-
-const items = [
-    { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
-    { id: 'submissions' as const, label: 'Candidates', icon: Users },
-    { id: 'analytics' as const, label: 'Analytics', icon: PieChart },
-];
 
 export default function Sidebar({
     activeTab,
     onTabChange,
     totalCount,
     pendingCount,
+    shortlistedCount = 0,
+    selectedCount = 0,
     isRefreshing,
     onRefresh,
     lastUpdated,
     onLogout,
+    onConfigureWhatsAppLinks,
 }: Props) {
+    const items = [
+        { id: 'overview' as const, label: 'Overview', icon: LayoutDashboard },
+        { id: 'submissions' as const, label: 'All Candidates', icon: Users, badge: totalCount },
+        { id: 'shortlisted' as const, label: 'Shortlisted (Send)', icon: Send, badge: shortlistedCount, badgeColor: 'bg-blue-600' },
+        { id: 'selected' as const, label: 'Selected (Domain)', icon: CheckCircle2, badge: selectedCount, badgeColor: 'bg-emerald-600' },
+        { id: 'analytics' as const, label: 'Analytics', icon: PieChart },
+    ];
+
     return (
         <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col bg-white text-slate-800 z-30 border-r border-slate-200 shadow-sm">
             {/* Official Brand Header */}
@@ -66,7 +84,7 @@ export default function Sidebar({
                     </span>
                 </div>
 
-                {items.map(({ id, label, icon: Icon }) => {
+                {items.map(({ id, label, icon: Icon, badge, badgeColor }) => {
                     const active = activeTab === id;
                     return (
                         <button
@@ -83,20 +101,36 @@ export default function Sidebar({
                                 className={active ? 'text-[#EA580C]' : 'text-slate-400'}
                             />
                             <span className="flex-1 text-left">{label}</span>
-                            {id === 'submissions' && (
+                            {badge !== undefined && (
                                 <span
-                                    className={`text-[10px] mono-num px-2 py-0.5 rounded-full font-semibold ${
+                                    className={`text-[10px] mono-num px-2 py-0.5 rounded-full font-semibold text-white ${
                                         active
-                                            ? 'bg-[#EA580C] text-white'
-                                            : 'bg-slate-100 text-slate-600'
+                                            ? 'bg-[#EA580C]'
+                                            : badgeColor || 'bg-slate-500'
                                     }`}
                                 >
-                                    {totalCount}
+                                    {badge}
                                 </span>
                             )}
                         </button>
                     );
                 })}
+
+                {/* WhatsApp Link Configuration Quick Button */}
+                {onConfigureWhatsAppLinks && (
+                    <div className="pt-2">
+                        <button
+                            onClick={onConfigureWhatsAppLinks}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100/90 border border-emerald-200 transition"
+                        >
+                            <Link2 size={15} className="text-emerald-600" />
+                            <span className="flex-1 text-left">WhatsApp Links</span>
+                            <span className="text-[10px] text-emerald-600 bg-white px-1.5 py-0.2 rounded font-mono">
+                                5
+                            </span>
+                        </button>
+                    </div>
+                )}
 
                 {/* Candidate Review Status Metric Box */}
                 <div className="mt-6 mx-1 p-3.5 rounded-xl bg-gradient-to-br from-amber-50/70 to-orange-50/50 border border-amber-200/70">
@@ -132,7 +166,7 @@ export default function Sidebar({
                     </div>
                     <div className="text-[10px] text-slate-500 leading-tight">
                         • Google Sheets (Primary Live)<br />
-                        • Failover Circuit Breaker (Enabled)
+                        • Automated Email Dispatch (Active)
                     </div>
                 </div>
             </nav>

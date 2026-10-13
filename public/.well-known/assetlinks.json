@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.netlify.ecell_jec_portal.twa",
+      "sha256_cert_fingerprints": [
+        "F8:A9:B0:8E:F8:6C:9A:3D:65:AF:95:8E:D7:8F:FC:43:AE:FD:05:87:19:B8:EB:2B:D3:CB:D4:6B:AA:92:B1:E0"
+      ]
+    }
+  }
+]

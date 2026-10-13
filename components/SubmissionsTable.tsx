@@ -1,7 +1,23 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Download, ExternalLink, MessageSquare, Phone, MoreHorizontal, Eye, CheckCircle2, Clock, XCircle, ArrowUpDown, RefreshCw, Send, Pencil, Trash2 } from 'lucide-react';
+import {
+    Search,
+    Download,
+    Eye,
+    RefreshCw,
+    Send,
+    Pencil,
+    Trash2,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    Sparkles,
+    CheckSquare,
+    Square,
+    Mail,
+    X
+} from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 
 interface Props {
@@ -12,6 +28,10 @@ interface Props {
     isRefreshing: boolean;
     onEdit?: (candidate: ApplicationRecord) => void;
     onDelete?: (candidate: ApplicationRecord) => void;
+    onBulkStatusChange?: (candidates: ApplicationRecord[], newStatus: ApplicationRecord['status']) => Promise<void>;
+    onBulkDelete?: (candidates: ApplicationRecord[]) => Promise<void>;
+    onBulkSendEmail?: (candidates: ApplicationRecord[]) => Promise<void>;
+    onSendSingleEmail?: (candidate: ApplicationRecord) => Promise<void>;
 }
 
 export default function SubmissionsTable({
@@ -22,6 +42,10 @@ export default function SubmissionsTable({
     isRefreshing,
     onEdit,
     onDelete,
+    onBulkStatusChange,
+    onBulkDelete,
+    onBulkSendEmail,
+    onSendSingleEmail,
 }: Props) {
     const [search, setSearch] = useState('');
     const [domainFilter, setDomainFilter] = useState('all');
@@ -29,6 +53,8 @@ export default function SubmissionsTable({
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState<'date' | 'name' | 'domain'>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
     // Filter and sort submissions
     const filtered = useMemo(() => {
@@ -72,6 +98,66 @@ export default function SubmissionsTable({
                     : (b.rowIndex || 0) - (a.rowIndex || 0);
             });
     }, [submissions, search, domainFilter, yearFilter, statusFilter, sortBy, sortOrder]);
+
+    // Selected candidate objects
+    const selectedCandidates = useMemo(() => {
+        return submissions.filter((s) => selectedIds.has(s.id));
+    }, [submissions, selectedIds]);
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filtered.length && filtered.length > 0) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filtered.map((c) => c.id)));
+        }
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    // Bulk actions
+    const handleBulkStatus = async (status: ApplicationRecord['status']) => {
+        if (selectedCandidates.length === 0 || !onBulkStatusChange) return;
+        setIsBulkProcessing(true);
+        try {
+            await onBulkStatusChange(selectedCandidates, status);
+            clearSelection();
+        } finally {
+            setIsBulkProcessing(false);
+        }
+    };
+
+    const handleBulkDeleteAction = async () => {
+        if (selectedCandidates.length === 0 || !onBulkDelete) return;
+        if (!window.confirm(`Permanently delete ${selectedCandidates.length} selected candidates from Google Sheets?`)) return;
+        setIsBulkProcessing(true);
+        try {
+            await onBulkDelete(selectedCandidates);
+            clearSelection();
+        } finally {
+            setIsBulkProcessing(false);
+        }
+    };
+
+    const handleBulkSendEmailAction = async () => {
+        if (selectedCandidates.length === 0 || !onBulkSendEmail) return;
+        if (!window.confirm(`Send automated congratulatory emails with domain WhatsApp links to ${selectedCandidates.length} selected candidates? They will be moved to the Selected Candidates table.`)) return;
+        setIsBulkProcessing(true);
+        try {
+            await onBulkSendEmail(selectedCandidates);
+            clearSelection();
+        } finally {
+            setIsBulkProcessing(false);
+        }
+    };
 
     // CSV Export
     const exportCSV = () => {
@@ -132,8 +218,83 @@ export default function SubmissionsTable({
     };
 
     return (
-        <div className="bg-white border border-slate-200 rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.02)] overflow-hidden">
-            {/* Control Bar: Search & Systematic Filters */}
+        <div className="bg-white border border-slate-200 rounded-lg shadow-[0_1px_2px_rgba(0,0,0,0.02)] overflow-hidden relative">
+            {/* Sticky Floating Bulk Action Bar */}
+            {selectedIds.size > 0 && (
+                <div className="bg-slate-900 text-white p-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-150 sticky top-0 z-20">
+                    <div className="flex items-center gap-3">
+                        <span className="px-2 py-0.5 bg-orange-600 text-white text-[11px] font-bold rounded-full font-mono">
+                            {selectedIds.size} Selected
+                        </span>
+                        <span className="text-xs text-slate-300 hidden sm:inline">Bulk Actions:</span>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-2 text-xs">
+                        {onBulkStatusChange && (
+                            <>
+                                <button
+                                    onClick={() => handleBulkStatus('shortlisted')}
+                                    disabled={isBulkProcessing}
+                                    className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 font-semibold text-white transition disabled:opacity-50 text-[11px]"
+                                    title="Move all selected to Shortlisted"
+                                >
+                                    Approve (Shortlist)
+                                </button>
+                                <button
+                                    onClick={() => handleBulkStatus('selected')}
+                                    disabled={isBulkProcessing}
+                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 font-semibold text-white transition disabled:opacity-50 text-[11px]"
+                                    title="Mark all selected as Selected"
+                                >
+                                    Mark Selected
+                                </button>
+                                <button
+                                    onClick={() => handleBulkStatus('rejected')}
+                                    disabled={isBulkProcessing}
+                                    className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition disabled:opacity-50 text-[11px]"
+                                    title="Mark all selected as Rejected"
+                                >
+                                    Reject
+                                </button>
+                            </>
+                        )}
+
+                        {onBulkSendEmail && (
+                            <button
+                                onClick={handleBulkSendEmailAction}
+                                disabled={isBulkProcessing}
+                                className="px-3 py-1 rounded bg-emerald-500 hover:bg-emerald-600 font-bold text-white transition disabled:opacity-50 flex items-center gap-1.5 text-[11px]"
+                                title="Send invitation emails with domain WhatsApp links to selected"
+                            >
+                                <Send size={12} />
+                                <span>Send Email ({selectedIds.size})</span>
+                            </button>
+                        )}
+
+                        {onBulkDelete && (
+                            <button
+                                onClick={handleBulkDeleteAction}
+                                disabled={isBulkProcessing}
+                                className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 font-semibold text-white transition disabled:opacity-50 flex items-center gap-1 text-[11px]"
+                                title="Permanently delete selected candidates"
+                            >
+                                <Trash2 size={12} />
+                                <span>Delete</span>
+                            </button>
+                        )}
+
+                        <button
+                            onClick={clearSelection}
+                            className="p-1 text-slate-400 hover:text-white rounded ml-1 transition"
+                            title="Clear selection"
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Control Bar: Search & Filters */}
             <div className="p-3 border-b border-slate-100 flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between bg-slate-50/50">
                 {/* Search input */}
                 <div className="relative flex-1 max-w-sm">
@@ -225,7 +386,16 @@ export default function SubmissionsTable({
                 <table className="w-full text-left border-collapse text-xs">
                     <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold text-slate-500 uppercase tracking-tight">
-                            <th className="py-2.5 px-3 w-12 text-center">#</th>
+                            <th className="py-2.5 px-3 w-8 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="checkbox"
+                                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                                    onChange={toggleSelectAll}
+                                    className="w-3.5 h-3.5 rounded accent-[#EA580C] cursor-pointer"
+                                    title="Select all"
+                                />
+                            </th>
+                            <th className="py-2.5 px-3 w-10 text-center">#</th>
                             <th className="py-2.5 px-3">Candidate</th>
                             <th className="py-2.5 px-3">Enrollment</th>
                             <th className="py-2.5 px-3">Domain</th>
@@ -238,12 +408,13 @@ export default function SubmissionsTable({
                     <tbody className="divide-y divide-slate-100">
                         {filtered.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="py-10 text-center text-slate-400 text-xs">
+                                <td colSpan={9} className="py-10 text-center text-slate-400 text-xs">
                                     No candidates match the filter criteria.
                                 </td>
                             </tr>
                         ) : (
                             filtered.map((c, i) => {
+                                const isSelected = selectedIds.has(c.id);
                                 const cleanPhone = (c.whatsapp || c.phone || '').replace(/\D/g, '');
                                 const waNumber = cleanPhone.startsWith('91') && cleanPhone.length > 10 ? cleanPhone : `91${cleanPhone.replace(/^0+/, '')}`;
                                 const waMsg = encodeURIComponent(`Hi ${c.name}, greetings from E-Cell JEC regarding your recruitment submission for ${c.domain}.`);
@@ -252,9 +423,27 @@ export default function SubmissionsTable({
                                 return (
                                     <tr
                                         key={c.id || i}
-                                        className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                                        className={`hover:bg-slate-50/60 transition-colors group cursor-pointer ${
+                                            isSelected ? 'bg-orange-50/40' : ''
+                                        }`}
                                         onClick={() => onSelectCandidate(c)}
                                     >
+                                        {/* Row selection checkbox */}
+                                        <td
+                                            className="py-2.5 px-3 text-center"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleSelect(c.id);
+                                            }}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => {}}
+                                                className="w-3.5 h-3.5 rounded accent-[#EA580C] cursor-pointer"
+                                            />
+                                        </td>
+
                                         {/* Row number */}
                                         <td className="py-2.5 px-3 text-center mono-num text-slate-400 text-[11px]">
                                             {c.rowIndex || i + 1}
@@ -333,14 +522,24 @@ export default function SubmissionsTable({
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center justify-end gap-1.5">
+                                                {/* If candidate is shortlisted, allow direct Send Email button */}
+                                                {c.status === 'shortlisted' && onSendSingleEmail && (
+                                                    <button
+                                                        onClick={() => onSendSingleEmail(c)}
+                                                        title="Send invitation email with domain WhatsApp link"
+                                                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                                    >
+                                                        <Send size={13} />
+                                                    </button>
+                                                )}
                                                 <a
                                                     href={waLink}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    title="Direct WhatsApp"
-                                                    className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                                    title="Direct WhatsApp message"
+                                                    className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                                                 >
-                                                    <Send size={13} />
+                                                    <Send size={12} className="opacity-75" />
                                                 </a>
                                                 <button
                                                     onClick={() => onSelectCandidate(c)}

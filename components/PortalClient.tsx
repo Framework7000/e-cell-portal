@@ -9,8 +9,12 @@ import CandidateModal from '@/components/CandidateModal';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import EditCandidateModal, { EditFormValues } from '@/components/EditCandidateModal';
 import DeleteConfirmModal from '@/components/DeleteConfirmModal';
+import WhatsAppLinksModal from '@/components/WhatsAppLinksModal';
+import ShortlistedSendQueue from '@/components/ShortlistedSendQueue';
+import SelectedCandidatesTable from '@/components/SelectedCandidatesTable';
 import { ApplicationRecord } from '@/lib/google-sheets';
-import { ShieldAlert, RefreshCw, FileSpreadsheet, Users, Filter, CheckCircle2 } from 'lucide-react';
+import { DomainWhatsAppLinks, getStoredWhatsAppLinks } from '@/lib/whatsapp-links';
+import { ShieldAlert, RefreshCw, FileSpreadsheet, Users, Filter, CheckCircle2, Send, Sparkles, X } from 'lucide-react';
 
 interface Props {
     initialSubmissions: ApplicationRecord[];
@@ -20,6 +24,7 @@ export default function PortalClient({ initialSubmissions }: Props) {
     const [submissions, setSubmissions] = useState<ApplicationRecord[]>(initialSubmissions);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<string>(
         new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     );
@@ -28,9 +33,27 @@ export default function PortalClient({ initialSubmissions }: Props) {
     const [editingCandidate, setEditingCandidate] = useState<ApplicationRecord | null>(null);
     const [deletingCandidate, setDeletingCandidate] = useState<ApplicationRecord | null>(null);
 
+    // WhatsApp Links state & modal
+    const [whatsappLinks, setWhatsappLinks] = useState<DomainWhatsAppLinks>(() => getStoredWhatsAppLinks());
+    const [isLinksModalOpen, setIsLinksModalOpen] = useState(false);
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+
     const pendingCount = submissions.filter(
         (s) => !s.status || s.status.toLowerCase() === 'pending'
     ).length;
+
+    const shortlistedCount = submissions.filter(
+        (s) => s.status === 'shortlisted'
+    ).length;
+
+    const selectedCount = submissions.filter(
+        (s) => s.status === 'selected'
+    ).length;
+
+    const showToast = (msg: string) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(null), 5000);
+    };
 
     const loadSubmissions = useCallback(async () => {
         setIsRefreshing(true);
@@ -99,12 +122,95 @@ export default function PortalClient({ initialSubmissions }: Props) {
         } catch (err: any) {
             console.error('Failed to update status:', err);
             alert(`Could not update Google Sheets: ${err?.message || 'Unknown error'}`);
-            // Rollback on failure
             loadSubmissions();
         }
     };
 
-    // Edit candidate details (writes to Google Sheets, then re-syncs)
+    // Bulk status change for multiple selected candidates
+    const handleBulkStatusChange = async (
+        candidates: ApplicationRecord[],
+        newStatus: ApplicationRecord['status']
+    ) => {
+        try {
+            const rowIndices = candidates.map((c) => c.rowIndex).filter(Boolean) as number[];
+            // Optimistic update
+            setSubmissions((prev) =>
+                prev.map((s) => (s.rowIndex && rowIndices.includes(s.rowIndex) ? { ...s, status: newStatus } : s))
+            );
+
+            // Execute updates in parallel with batching
+            await Promise.all(
+                candidates.map((c) =>
+                    c.rowIndex
+                        ? fetch('/api/submissions', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ rowIndex: c.rowIndex, status: newStatus }),
+                          })
+                        : Promise.resolve()
+                )
+            );
+
+            showToast(`Updated status to "${newStatus}" for ${candidates.length} candidates.`);
+            await loadSubmissions();
+        } catch (err: any) {
+            console.error('Bulk status error:', err);
+            showToast(`Error updating bulk status: ${err?.message || 'Failed'}`);
+            await loadSubmissions();
+        }
+    };
+
+    // Bulk delete candidates
+    const handleBulkDelete = async (candidates: ApplicationRecord[]) => {
+        try {
+            for (const c of candidates) {
+                if (c.rowIndex) {
+                    await fetch('/api/submissions', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rowIndex: c.rowIndex, id: c.id }),
+                    });
+                }
+            }
+            showToast(`Deleted ${candidates.length} candidates from Google Sheets.`);
+            await loadSubmissions();
+        } catch (err: any) {
+            console.error('Bulk delete error:', err);
+            showToast(`Error deleting candidates: ${err?.message || 'Failed'}`);
+            await loadSubmissions();
+        }
+    };
+
+    // Automated email sending (single or batch)
+    const handleSendEmail = async (candidates: ApplicationRecord[]) => {
+        setIsSendingEmail(true);
+        try {
+            const res = await fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidates,
+                    whatsappLinks,
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Failed to send automated emails');
+            }
+
+            showToast(data.message || `Automated emails sent to ${data.sentCount} candidates with domain WhatsApp links.`);
+            // Refresh submissions so status moves to 'selected' in the UI
+            await loadSubmissions();
+        } catch (err: any) {
+            console.error('Email send error:', err);
+            alert(`Email delivery issue: ${err?.message || 'Unknown error'}`);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    // Edit candidate details
     const handleEditSave = async (candidate: ApplicationRecord, values: EditFormValues) => {
         const res = await fetch('/api/submissions', {
             method: 'PUT',
@@ -116,7 +222,7 @@ export default function PortalClient({ initialSubmissions }: Props) {
         await loadSubmissions();
     };
 
-    // Delete candidate (removes the sheet row, then re-syncs so row numbers stay correct)
+    // Delete candidate
     const handleDeleteConfirm = async (candidate: ApplicationRecord) => {
         const res = await fetch('/api/submissions', {
             method: 'DELETE',
@@ -137,10 +243,13 @@ export default function PortalClient({ initialSubmissions }: Props) {
                 onTabChange={setActiveTab}
                 totalCount={submissions.length}
                 pendingCount={pendingCount}
+                shortlistedCount={shortlistedCount}
+                selectedCount={selectedCount}
                 isRefreshing={isRefreshing}
                 onRefresh={loadSubmissions}
                 lastUpdated={lastUpdated}
                 onLogout={handleLogout}
+                onConfigureWhatsAppLinks={() => setIsLinksModalOpen(true)}
             />
 
             {/* Main Content Area */}
@@ -154,10 +263,27 @@ export default function PortalClient({ initialSubmissions }: Props) {
                     onRefresh={loadSubmissions}
                     lastUpdated={lastUpdated}
                     onLogout={handleLogout}
+                    onConfigureWhatsAppLinks={() => setIsLinksModalOpen(true)}
                 />
 
                 {/* Main Systematic Container */}
                 <main className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1">
+                    {/* Toast Notification Banner */}
+                    {toastMessage && (
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs text-emerald-900 shadow-sm animate-in fade-in duration-200">
+                            <div className="flex items-center gap-2.5">
+                                <CheckCircle2 size={17} className="text-emerald-600 flex-shrink-0" />
+                                <span className="font-medium">{toastMessage}</span>
+                            </div>
+                            <button
+                                onClick={() => setToastMessage(null)}
+                                className="p-1 text-emerald-700 hover:text-emerald-950 rounded"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    )}
+
                     {/* Error notification if sheets fail */}
                     {error && (
                         <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between text-xs text-red-800 shadow-2xs">
@@ -174,7 +300,7 @@ export default function PortalClient({ initialSubmissions }: Props) {
                         </div>
                     )}
 
-                    {/* Tab 1: Executive Overview (KPIs + High Density Pie & Bar Visualizations + Table) */}
+                    {/* Tab 1: Executive Overview (KPIs + High Density Visualizations + Table) */}
                     {activeTab === 'overview' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
                             {/* Graphical Analytics & KPI Row */}
@@ -204,12 +330,16 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                     isRefreshing={isRefreshing}
                                     onEdit={(c) => setEditingCandidate(c)}
                                     onDelete={(c) => setDeletingCandidate(c)}
+                                    onBulkStatusChange={handleBulkStatusChange}
+                                    onBulkDelete={handleBulkDelete}
+                                    onBulkSendEmail={handleSendEmail}
+                                    onSendSingleEmail={(c) => handleSendEmail([c])}
                                 />
                             </div>
                         </div>
                     )}
 
-                    {/* Tab 2: Dedicated Candidate Database */}
+                    {/* Tab 2: Dedicated Candidate Database (Full Search, Filters & Bulk Actions) */}
                     {activeTab === 'submissions' && (
                         <div className="space-y-4 animate-in fade-in duration-200">
                             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -217,11 +347,11 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                     <h1 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
                                         <span>Candidate Database</span>
                                         <span className="text-[10px] font-semibold bg-orange-50 text-[#EA580C] px-2 py-0.5 rounded-full border border-orange-200">
-                                            Live Evaluation
+                                            Live Evaluation & Multi-Select
                                         </span>
                                     </h1>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                        Review submissions, update shortlisting status, write private notes, and trigger direct WhatsApp conversations.
+                                        Select candidates for bulk shortlisting, send domain WhatsApp invitations, edit details, or remove entries.
                                     </p>
                                 </div>
                                 <span className="text-xs font-mono bg-white px-3 py-1 rounded-lg border border-slate-200 text-slate-700 font-semibold shadow-2xs">
@@ -237,11 +367,41 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                 isRefreshing={isRefreshing}
                                 onEdit={(c) => setEditingCandidate(c)}
                                 onDelete={(c) => setDeletingCandidate(c)}
+                                onBulkStatusChange={handleBulkStatusChange}
+                                onBulkDelete={handleBulkDelete}
+                                onBulkSendEmail={handleSendEmail}
+                                onSendSingleEmail={(c) => handleSendEmail([c])}
                             />
                         </div>
                     )}
 
-                    {/* Tab 3: Dedicated Graphical Cohort Analytics */}
+                    {/* Tab 3: Dedicated Shortlisted Candidate Send Queue */}
+                    {activeTab === 'shortlisted' && (
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                            <ShortlistedSendQueue
+                                submissions={submissions}
+                                whatsappLinks={whatsappLinks}
+                                onSendEmail={handleSendEmail}
+                                onSelectCandidate={(c) => setSelectedCandidate(c)}
+                                onConfigureLinks={() => setIsLinksModalOpen(true)}
+                                isSending={isSendingEmail}
+                            />
+                        </div>
+                    )}
+
+                    {/* Tab 4: Dedicated Selected Candidates Table (Domain-Wise Roster) */}
+                    {activeTab === 'selected' && (
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                            <SelectedCandidatesTable
+                                submissions={submissions}
+                                onSelectCandidate={(c) => setSelectedCandidate(c)}
+                                onEdit={(c) => setEditingCandidate(c)}
+                                onDelete={(c) => setDeletingCandidate(c)}
+                            />
+                        </div>
+                    )}
+
+                    {/* Tab 5: Dedicated Graphical Cohort Analytics */}
                     {activeTab === 'analytics' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
                             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -259,7 +419,7 @@ export default function PortalClient({ initialSubmissions }: Props) {
                         </div>
                     )}
 
-                    {/* Tab 4: Direct Cloud Sync Management */}
+                    {/* Tab 6: Direct Cloud Sync Management */}
                     {activeTab === 'sync' && (
                         <div className="space-y-6 animate-in fade-in duration-200">
                             <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs max-w-2xl mx-auto space-y-5">
@@ -290,15 +450,15 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                         <span className="font-mono text-slate-500">{lastUpdated}</span>
                                     </div>
                                     <div className="flex justify-between text-slate-600">
-                                        <span>Auto-Failover Mode:</span>
-                                        <span className="text-slate-700 font-medium">Ready (Dual Engine)</span>
+                                        <span>Automated Email Dispatch:</span>
+                                        <span className="text-slate-700 font-medium">Domain WhatsApp Linked</span>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={loadSubmissions}
                                     disabled={isRefreshing}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-[#EA580C] to-[#F59E0B] hover:opacity-95 disabled:opacity-50 transition shadow-sm"
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-[#EA580C] to-[#F59E0B] hover:opacity-95 disabled:opacity-50 transition shadow-sm cursor-pointer"
                                 >
                                     <RefreshCw size={15} className={isRefreshing ? 'animate-spin' : ''} />
                                     <span>{isRefreshing ? 'Synchronizing now...' : 'Trigger Immediate Sync'}</span>
@@ -307,6 +467,22 @@ export default function PortalClient({ initialSubmissions }: Props) {
                         </div>
                     )}
                 </main>
+
+                {/* Systematic Portal Footer */}
+                <footer className="mt-auto py-5 border-t border-slate-200/80 bg-white/70 backdrop-blur-xs text-xs text-slate-500">
+                    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+                        <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-slate-900 tracking-tight">E-CELL <span className="text-[#EA580C]">JEC</span></span>
+                            <span className="text-slate-300">•</span>
+                            <span>Candidate Evaluation & Recruitment Portal</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
+                            <span>© {new Date().getFullYear()} Jabalpur Engineering College</span>
+                            <span>•</span>
+                            <span className="text-emerald-600 font-semibold">Sheets Live Connected</span>
+                        </div>
+                    </div>
+                </footer>
             </div>
 
             {/* Candidate Review Modal */}
@@ -316,15 +492,28 @@ export default function PortalClient({ initialSubmissions }: Props) {
                 onStatusChange={handleStatusChange}
             />
 
+            {/* Edit Candidate Modal */}
             <EditCandidateModal
                 candidate={editingCandidate}
                 onClose={() => setEditingCandidate(null)}
                 onSave={handleEditSave}
             />
+
+            {/* Delete Candidate Modal */}
             <DeleteConfirmModal
                 candidate={deletingCandidate}
                 onClose={() => setDeletingCandidate(null)}
                 onConfirm={handleDeleteConfirm}
+            />
+
+            {/* Domain WhatsApp Links Configuration Modal */}
+            <WhatsAppLinksModal
+                isOpen={isLinksModalOpen}
+                onClose={() => setIsLinksModalOpen(false)}
+                onSaved={(updated) => {
+                    setWhatsappLinks(updated);
+                    showToast('Domain WhatsApp links updated successfully.');
+                }}
             />
 
             {/* Mobile Bottom Navigation Bar (<RULE[user_global]>) */}
@@ -332,6 +521,8 @@ export default function PortalClient({ initialSubmissions }: Props) {
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 totalCount={submissions.length}
+                shortlistedCount={shortlistedCount}
+                selectedCount={selectedCount}
                 isRefreshing={isRefreshing}
                 onRefresh={loadSubmissions}
             />
