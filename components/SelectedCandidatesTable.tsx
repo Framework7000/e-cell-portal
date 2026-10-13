@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Download, Copy, Check, Eye, Pencil, Trash2, Send, CheckCircle2, MessageSquare, Phone, Users, Sparkles, LayoutGrid, Code2, Palette, Megaphone, Briefcase, FileText, Mail, RefreshCw } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
+import { formatIndianDateTime } from '@/lib/date-utils';
 
 interface Props {
     submissions: ApplicationRecord[];
@@ -102,7 +103,7 @@ export default function SelectedCandidatesTable({
             `"${c.domain.replace(/"/g, '""')}"`,
             c.status,
             `"${(c.notes || '').replace(/"/g, '""')}"`,
-            `"${c.created_at}"`,
+            `"${formatIndianDateTime(c.created_at)}"`,
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
@@ -270,7 +271,7 @@ export default function SelectedCandidatesTable({
                                                             {c.name}
                                                         </span>
                                                         <span className="text-[10px] text-slate-400 font-mono">
-                                                            {c.created_at}
+                                                            {formatIndianDateTime(c.created_at)}
                                                         </span>
                                                     </div>
                                                 </div>

@@ -20,6 +20,7 @@ import {
     MessageSquare,
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
+import { formatIndianDateTime } from '@/lib/date-utils';
 
 interface Props {
     submissions: ApplicationRecord[];
@@ -174,7 +175,7 @@ export default function SubmissionsTable({
             c.year,
             `"${c.domain.replace(/"/g, '""')}"`,
             c.status,
-            `"${c.created_at}"`,
+            `"${formatIndianDateTime(c.created_at)}"`,
             `"${(c.reason || '').replace(/"/g, '""')}"`,
         ]);
 
@@ -462,7 +463,7 @@ export default function SubmissionsTable({
                                                         {c.name}
                                                     </span>
                                                     <span className="text-[10px] text-slate-400 mono-num">
-                                                        {c.created_at}
+                                                        {formatIndianDateTime(c.created_at)}
                                                     </span>
                                                 </div>
                                             </div>

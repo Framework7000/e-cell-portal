@@ -194,32 +194,123 @@ export async function updateApplicationDetailsInSheet(
     return { success: true };
 }
 
-// Permanently delete a candidate row from Sheet1
-export async function deleteApplicationRowFromSheet(rowIndex: number, id: string) {
-    await assertRowMatchesId(rowIndex, id);
+// Permanently delete one or more candidate rows from Sheet1
+// Resolves actual live row numbers using Column A so row shifts never corrupt or miss rows
+export async function deleteApplicationsFromSheet(items: Array<{ rowIndex?: number; id: string }>) {
+    if (!items || items.length === 0) return { success: true, count: 0 };
+
     const { sheets, spreadsheetId } = getGoogleSheetsClient();
+
+    // 1. Fetch live Column A to map IDs to their current 0-indexed row position
+    const colARes = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Sheet1!A:A',
+    });
+    const colA = colARes.data.values || []; // index 0 is Row 1
+
+    const idToZeroIndex = new Map<string, number>();
+    colA.forEach((r, idx) => {
+        const val = (r[0] || '').toString().trim();
+        if (val) idToZeroIndex.set(val, idx);
+    });
+
+    const zeroIndicesToDelete = new Set<number>();
+
+    for (const it of items) {
+        const id = (it.id || '').toString().trim();
+        if (id && idToZeroIndex.has(id)) {
+            zeroIndicesToDelete.add(idToZeroIndex.get(id)!);
+        } else if (it.rowIndex && it.rowIndex >= 1) {
+            zeroIndicesToDelete.add(it.rowIndex - 1);
+        }
+    }
+
+    if (zeroIndicesToDelete.size === 0) {
+        return { success: true, count: 0 };
+    }
+
+    // CRITICAL: Sort row indices in DESCENDING order (highest first)
+    // Deleting higher rows never shifts or changes the indices of lower rows!
+    const sortedZeroIndices = Array.from(zeroIndicesToDelete).sort((a, b) => b - a);
 
     const meta = await sheets.spreadsheets.get({ spreadsheetId });
     const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Sheet1');
-    const sheetId = sheet?.properties?.sheetId;
-    if (sheetId === undefined || sheetId === null) {
-        throw new Error('Sheet1 tab not found');
-    }
+    const sheetId = sheet?.properties?.sheetId ?? 0;
+
+    const requests = sortedZeroIndices.map((zeroIdx) => ({
+        deleteDimension: {
+            range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: zeroIdx,
+                endIndex: zeroIdx + 1,
+            },
+        },
+    }));
 
     await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
-        requestBody: {
-            requests: [{
-                deleteDimension: {
-                    range: {
-                        sheetId,
-                        dimension: 'ROWS',
-                        startIndex: rowIndex - 1,
-                        endIndex: rowIndex,
-                    },
-                },
-            }],
-        },
+        requestBody: { requests },
     });
-    return { success: true };
+
+    return { success: true, count: requests.length };
+}
+
+// Single delete delegates to the batch-safe deletion function
+export async function deleteApplicationRowFromSheet(rowIndex: number, id: string) {
+    return await deleteApplicationsFromSheet([{ rowIndex, id }]);
+}
+
+// Bulk update candidate status (and optional notes) in a single batch API call
+export async function bulkUpdateApplicationStatusInSheet(
+    updates: Array<{ id: string; rowIndex?: number; status: string; notes?: string }>
+) {
+    if (!updates || updates.length === 0) return { success: true, count: 0 };
+
+    const { sheets, spreadsheetId } = getGoogleSheetsClient();
+
+    // 1. Fetch live Column A to map IDs to their current row number (1-indexed)
+    const colARes = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: 'Sheet1!A:A',
+    });
+    const colA = colARes.data.values || [];
+
+    const idToRowIndex = new Map<string, number>();
+    colA.forEach((r, idx) => {
+        const val = (r[0] || '').toString().trim();
+        if (val) idToRowIndex.set(val, idx + 1); // 1-indexed row number
+    });
+
+    const data: Array<{ range: string; values: string[][] }> = [];
+
+    for (const u of updates) {
+        const id = (u.id || '').toString().trim();
+        const actualRow = idToRowIndex.get(id) || u.rowIndex;
+        if (!actualRow || actualRow < 1) continue;
+
+        if (u.notes !== undefined) {
+            data.push({
+                range: `Sheet1!M${actualRow}:N${actualRow}`,
+                values: [[u.status, u.notes]],
+            });
+        } else {
+            data.push({
+                range: `Sheet1!M${actualRow}`,
+                values: [[u.status]],
+            });
+        }
+    }
+
+    if (data.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+                valueInputOption: 'USER_ENTERED',
+                data,
+            },
+        });
+    }
+
+    return { success: true, count: data.length };
 }

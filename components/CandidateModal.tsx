@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Phone, Mail, MessageSquare, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle, FileText, Send } from 'lucide-react';
+import { X, Phone, Mail, MessageSquare, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle, FileText, Send, HelpCircle } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
+import { formatIndianDateTime } from '@/lib/date-utils';
 
 interface Props {
     candidate: ApplicationRecord | null;
@@ -106,8 +107,8 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                             <span className="font-semibold text-slate-800">{candidate.domain}</span>
                         </div>
                         <div>
-                            <span className="text-slate-400 uppercase tracking-tight block text-[10px] mb-0.5">Submission Time</span>
-                            <span className="font-mono text-slate-700">{candidate.created_at}</span>
+                            <span className="text-slate-400 uppercase tracking-tight block text-[10px] mb-0.5">Submission Time (IST)</span>
+                            <span className="font-mono text-slate-700">{formatIndianDateTime(candidate.created_at)}</span>
                         </div>
                         <div>
                             <span className="text-slate-400 uppercase tracking-tight block text-[10px] mb-0.5">Email</span>
@@ -119,14 +120,25 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                         </div>
                     </div>
 
-                    {/* Statement / Reason */}
+                    {/* Why do you want to join E-Cell? */}
                     <div>
-                        <div className="flex items-center gap-1.5 mb-1 text-slate-600 font-medium text-[11px]">
-                            <FileText size={13} className="text-slate-400" />
-                            <span>Statement / Motivation</span>
+                        <div className="flex items-center gap-1.5 mb-1 text-slate-700 font-semibold text-[11px]">
+                            <FileText size={13} className="text-slate-500" />
+                            <span>Why do you want to join E-Cell?</span>
                         </div>
                         <div className="p-3 bg-white border border-slate-200 rounded-lg text-slate-700 leading-relaxed whitespace-pre-wrap text-[11px]">
                             {candidate.reason || 'No statement provided.'}
+                        </div>
+                    </div>
+
+                    {/* How did you hear about us? */}
+                    <div>
+                        <div className="flex items-center gap-1.5 mb-1 text-slate-700 font-semibold text-[11px]">
+                            <HelpCircle size={13} className="text-slate-500" />
+                            <span>How did you hear about us?</span>
+                        </div>
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium text-[11px]">
+                            {candidate.source || 'Direct / Campus'}
                         </div>
                     </div>
 

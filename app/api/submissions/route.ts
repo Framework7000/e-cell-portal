@@ -4,6 +4,8 @@ import {
     updateApplicationStatusInSheet,
     updateApplicationDetailsInSheet,
     deleteApplicationRowFromSheet,
+    deleteApplicationsFromSheet,
+    bulkUpdateApplicationStatusInSheet,
     getGoogleSheetsClient,
 } from '@/lib/google-sheets';
 
@@ -66,11 +68,29 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     try {
         const body = await request.json();
-        const { rowIndex, status, notes } = body;
 
+        // 1. Bulk status update
+        if (Array.isArray(body.candidates) && body.candidates.length > 0) {
+            const status = body.status || 'pending';
+            const updates = body.candidates.map((c: any) => ({
+                id: c.id,
+                rowIndex: c.rowIndex,
+                status: c.status || status,
+                notes: c.notes,
+            }));
+            const res = await bulkUpdateApplicationStatusInSheet(updates);
+            return NextResponse.json({
+                success: true,
+                message: `Status updated for ${res.count} candidates`,
+                count: res.count,
+            });
+        }
+
+        // 2. Single status update
+        const { rowIndex, status, notes } = body;
         if (!rowIndex || typeof rowIndex !== 'number') {
             return NextResponse.json(
-                { success: false, error: 'Valid rowIndex is required' },
+                { success: false, error: 'Valid rowIndex or candidates array is required' },
                 { status: 400 }
             );
         }
@@ -130,25 +150,40 @@ export async function PUT(request: NextRequest) {
     }
 }
 
-// Delete candidate
+// Delete candidate(s)
 export async function DELETE(request: NextRequest) {
     try {
         const body = await request.json();
-        const { rowIndex, id } = body;
 
-        if (!rowIndex || typeof rowIndex !== 'number') {
+        // 1. Bulk delete
+        if (Array.isArray(body.candidates) && body.candidates.length > 0) {
+            const res = await deleteApplicationsFromSheet(body.candidates);
+            return NextResponse.json({
+                success: true,
+                message: `Deleted ${res.count} candidates`,
+                count: res.count,
+            });
+        }
+
+        // 2. Single delete
+        const { rowIndex, id } = body;
+        if (!id && (!rowIndex || typeof rowIndex !== 'number')) {
             return NextResponse.json(
-                { success: false, error: 'Valid rowIndex is required' },
+                { success: false, error: 'Valid id, rowIndex or candidates array is required' },
                 { status: 400 }
             );
         }
 
-        await deleteApplicationRowFromSheet(rowIndex, (id ?? '').toString());
-        return NextResponse.json({ success: true, message: `Row ${rowIndex} deleted` });
+        const res = await deleteApplicationsFromSheet([{ rowIndex, id: (id ?? '').toString() }]);
+        return NextResponse.json({
+            success: true,
+            message: `Deleted ${res.count} candidate(s)`,
+            count: res.count,
+        });
     } catch (err: any) {
         console.error('API /api/submissions DELETE error:', err);
         return NextResponse.json(
-            { success: false, error: err?.message || 'Failed to delete candidate' },
+            { success: false, error: err?.message || 'Failed to delete candidate(s)' },
             { status: 500 }
         );
     }

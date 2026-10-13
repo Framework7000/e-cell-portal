@@ -159,12 +159,12 @@ export default function EditCandidateModal({ candidate, onClose, onSave }: Props
                         </select>
                     </div>
                     <div>
-                        <label className={labelCls}>Source</label>
-                        <input className={inputCls} value={values.source} onChange={set('source')} />
+                        <label className={labelCls}>How did you hear about us?</label>
+                        <input className={inputCls} placeholder="e.g. Instagram, WhatsApp, Friends, Campus posters" value={values.source} onChange={set('source')} />
                     </div>
                     <div className="sm:col-span-2">
-                        <label className={labelCls}>Statement / Reason</label>
-                        <textarea rows={3} className={inputCls} value={values.reason} onChange={set('reason')} />
+                        <label className={labelCls}>Why do you want to join E-Cell?</label>
+                        <textarea rows={3} className={inputCls} placeholder="Candidate's statement / motivation for joining E-Cell..." value={values.reason} onChange={set('reason')} />
                     </div>
                 </div>
 

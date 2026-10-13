@@ -132,24 +132,24 @@ export default function PortalClient({ initialSubmissions }: Props) {
         newStatus: ApplicationRecord['status']
     ) => {
         try {
-            const rowIndices = candidates.map((c) => c.rowIndex).filter(Boolean) as number[];
+            const candidateIds = new Set(candidates.map((c) => c.id));
             // Optimistic update
             setSubmissions((prev) =>
-                prev.map((s) => (s.rowIndex && rowIndices.includes(s.rowIndex) ? { ...s, status: newStatus } : s))
+                prev.map((s) => (candidateIds.has(s.id) ? { ...s, status: newStatus } : s))
             );
 
-            // Execute updates in parallel with batching
-            await Promise.all(
-                candidates.map((c) =>
-                    c.rowIndex
-                        ? fetch('/api/submissions', {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ rowIndex: c.rowIndex, status: newStatus }),
-                          })
-                        : Promise.resolve()
-                )
-            );
+            const res = await fetch('/api/submissions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidates: candidates.map((c) => ({ id: c.id, rowIndex: c.rowIndex })),
+                    status: newStatus,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Failed to update candidate status');
+            }
 
             showToast(`Updated status to "${newStatus}" for ${candidates.length} candidates.`);
             await loadSubmissions();
@@ -163,16 +163,23 @@ export default function PortalClient({ initialSubmissions }: Props) {
     // Bulk delete candidates
     const handleBulkDelete = async (candidates: ApplicationRecord[]) => {
         try {
-            for (const c of candidates) {
-                if (c.rowIndex) {
-                    await fetch('/api/submissions', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ rowIndex: c.rowIndex, id: c.id }),
-                    });
-                }
+            const deletingIds = new Set(candidates.map((c) => c.id));
+            // Optimistic UI update
+            setSubmissions((prev) => prev.filter((s) => !deletingIds.has(s.id)));
+
+            const res = await fetch('/api/submissions', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidates: candidates.map((c) => ({ id: c.id, rowIndex: c.rowIndex })),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Failed to delete selected candidates');
             }
-            showToast(`Deleted ${candidates.length} candidates from Google Sheets.`);
+
+            showToast(`Deleted ${candidates.length} candidate(s) from Google Sheets.`);
             await loadSubmissions();
         } catch (err: any) {
             console.error('Bulk delete error:', err);
@@ -227,7 +234,9 @@ export default function PortalClient({ initialSubmissions }: Props) {
         const res = await fetch('/api/submissions', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rowIndex: candidate.rowIndex, id: candidate.id }),
+            body: JSON.stringify({
+                candidates: [{ rowIndex: candidate.rowIndex, id: candidate.id }],
+            }),
         });
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.error || 'Failed to delete candidate');
