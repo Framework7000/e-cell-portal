@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Send, CheckCircle2, Link2, Sparkles, AlertCircle, RefreshCw, Eye, MessageSquare, ExternalLink, Settings, Users } from 'lucide-react';
+import { Send, CheckCircle2, Link2, Sparkles, AlertCircle, RefreshCw, Eye, MessageSquare, ExternalLink, Settings, Users, Code2, Palette, Megaphone, Briefcase, FileText, Mail, Phone, LayoutGrid } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 import { DomainWhatsAppLinks, getLinkForDomain } from '@/lib/whatsapp-links';
 
@@ -120,15 +120,16 @@ export default function ShortlistedSendQueue({
             {/* Domain Tabs Navigation */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
                 {[
-                    { id: 'all', label: 'All Shortlisted', icon: '👥' },
-                    { id: 'technical', label: 'Technical', icon: '💻' },
-                    { id: 'design', label: 'Design', icon: '🎨' },
-                    { id: 'marketing', label: 'Marketing', icon: '📢' },
-                    { id: 'management', label: 'Management', icon: '🤝' },
-                    { id: 'content', label: 'Content', icon: '📝' },
+                    { id: 'all', label: 'All Shortlisted', icon: Users },
+                    { id: 'technical', label: 'Technical', icon: Code2 },
+                    { id: 'design', label: 'Design', icon: Palette },
+                    { id: 'marketing', label: 'Marketing', icon: Megaphone },
+                    { id: 'management', label: 'Management', icon: Briefcase },
+                    { id: 'content', label: 'Content', icon: FileText },
                 ].map((tab) => {
                     const count = domainCounts[tab.id] || 0;
                     const isActive = domainFilter === tab.id;
+                    const TabIcon = tab.icon;
                     return (
                         <button
                             key={tab.id}
@@ -139,7 +140,7 @@ export default function ShortlistedSendQueue({
                                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
                             }`}
                         >
-                            <span>{tab.icon}</span>
+                            <TabIcon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
                             <span>{tab.label}</span>
                             <span
                                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
@@ -208,12 +209,14 @@ export default function ShortlistedSendQueue({
                                     </div>
 
                                     {/* Email & Phone */}
-                                    <div className="text-[11px] text-slate-500 space-y-0.5 pt-1">
-                                        <div className="truncate text-slate-700 font-medium">
-                                            ✉️ {candidate.email}
+                                    <div className="text-[11px] text-slate-500 space-y-1 pt-1">
+                                        <div className="truncate text-slate-700 font-medium flex items-center gap-1.5">
+                                            <Mail size={12} className="text-slate-400 shrink-0" />
+                                            <span className="truncate">{candidate.email}</span>
                                         </div>
-                                        <div className="font-mono text-slate-600">
-                                            📞 {candidate.phone}
+                                        <div className="font-mono text-slate-600 flex items-center gap-1.5">
+                                            <Phone size={12} className="text-slate-400 shrink-0" />
+                                            <span>{candidate.phone}</span>
                                         </div>
                                     </div>
 

@@ -16,7 +16,8 @@ import {
     CheckSquare,
     Square,
     Mail,
-    X
+    X,
+    MessageSquare,
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 
@@ -309,9 +310,10 @@ export default function SubmissionsTable({
                     {search && (
                         <button
                             onClick={() => setSearch('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px]"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                            aria-label="Clear search"
                         >
-                            ✕
+                            <X size={12} />
                         </button>
                     )}
                 </div>
@@ -533,13 +535,20 @@ export default function SubmissionsTable({
                                                     </button>
                                                 )}
                                                 <a
+                                                    href={`mailto:${c.email}?subject=E-Cell%20JEC%20Recruitment`}
+                                                    title="Send email from E-Cell mail (ecell@jec.ac.in)"
+                                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                >
+                                                    <Mail size={13} />
+                                                </a>
+                                                <a
                                                     href={waLink}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    title="Direct WhatsApp message"
+                                                    title="Direct WhatsApp chat"
                                                     className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                                                 >
-                                                    <Send size={12} className="opacity-75" />
+                                                    <MessageSquare size={13} />
                                                 </a>
                                                 <button
                                                     onClick={() => onSelectCandidate(c)}

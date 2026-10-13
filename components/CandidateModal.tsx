@@ -21,7 +21,7 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
     const cleanPhone = (candidate.whatsapp || candidate.phone || '').replace(/\D/g, '');
     const waNumber = cleanPhone.startsWith('91') && cleanPhone.length > 10 ? cleanPhone : `91${cleanPhone.replace(/^0+/, '')}`;
     const defaultWaMessage = encodeURIComponent(
-        `Hello ${candidate.name}! 👋\n\nGreetings from Entrepreneurship Cell (E-Cell), JEC Jabalpur.\nRegarding your recruitment application for the *${candidate.domain}* domain:\n\nWe would like to invite you for the next round of discussion. Are you available for a brief interactive interview?`
+        `Hello ${candidate.name}!\n\nGreetings from Entrepreneurship Cell (E-Cell), JEC Jabalpur.\nRegarding your recruitment application for the *${candidate.domain}* domain:\n\nWe would like to invite you for the next round of discussion. Are you available for a brief interactive interview?`
     );
     const waLink = `https://wa.me/${waNumber}?text=${defaultWaMessage}`;
 

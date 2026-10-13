@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, Download, Copy, Check, Eye, Pencil, Trash2, Send, CheckCircle2, MessageSquare, Phone, Users, Sparkles } from 'lucide-react';
+import { Search, Download, Copy, Check, Eye, Pencil, Trash2, Send, CheckCircle2, MessageSquare, Phone, Users, Sparkles, LayoutGrid, Code2, Palette, Megaphone, Briefcase, FileText, Mail, RefreshCw } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
     onSelectCandidate: (candidate: ApplicationRecord) => void;
     onEdit?: (candidate: ApplicationRecord) => void;
     onDelete?: (candidate: ApplicationRecord) => void;
+    onSendEmail?: (candidates: ApplicationRecord[]) => Promise<void>;
+    isSending?: boolean;
 }
 
 export default function SelectedCandidatesTable({
@@ -16,6 +18,8 @@ export default function SelectedCandidatesTable({
     onSelectCandidate,
     onEdit,
     onDelete,
+    onSendEmail,
+    isSending,
 }: Props) {
     const [search, setSearch] = useState('');
     const [domainFilter, setDomainFilter] = useState('all');
@@ -164,15 +168,16 @@ export default function SelectedCandidatesTable({
             {/* Domain Tabs Navigation */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
                 {[
-                    { id: 'all', label: 'All Domains', icon: '🌟' },
-                    { id: 'technical', label: 'Technical', icon: '💻' },
-                    { id: 'design', label: 'Design', icon: '🎨' },
-                    { id: 'marketing', label: 'Marketing', icon: '📢' },
-                    { id: 'management', label: 'Management', icon: '🤝' },
-                    { id: 'content', label: 'Content', icon: '📝' },
+                    { id: 'all', label: 'All Domains', icon: LayoutGrid },
+                    { id: 'technical', label: 'Technical', icon: Code2 },
+                    { id: 'design', label: 'Design', icon: Palette },
+                    { id: 'marketing', label: 'Marketing', icon: Megaphone },
+                    { id: 'management', label: 'Management', icon: Briefcase },
+                    { id: 'content', label: 'Content', icon: FileText },
                 ].map((tab) => {
                     const count = domainCounts[tab.id] || 0;
                     const isActive = domainFilter === tab.id;
+                    const TabIcon = tab.icon;
                     return (
                         <button
                             key={tab.id}
@@ -183,7 +188,7 @@ export default function SelectedCandidatesTable({
                                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
                             }`}
                         >
-                            <span>{tab.icon}</span>
+                            <TabIcon size={14} className={isActive ? 'text-white' : 'text-slate-500'} />
                             <span>{tab.label}</span>
                             <span
                                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
@@ -312,15 +317,24 @@ export default function SelectedCandidatesTable({
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 <div className="flex items-center justify-end gap-1">
-                                                    <a
-                                                        href={waLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        title="WhatsApp Direct"
-                                                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition"
-                                                    >
-                                                        <Send size={13} />
-                                                    </a>
+                                                    {onSendEmail ? (
+                                                        <button
+                                                            onClick={() => onSendEmail([c])}
+                                                            disabled={isSending}
+                                                            title="Send official email from E-Cell mail"
+                                                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition disabled:opacity-50"
+                                                        >
+                                                            <Send size={13} />
+                                                        </button>
+                                                    ) : (
+                                                        <a
+                                                            href={`mailto:${c.email}?subject=E-Cell%20JEC%20Selection%20Update&body=Dear%20${encodeURIComponent(c.name)},%0D%0A%0D%0AGreetings%20from%20E-Cell%20JEC.`}
+                                                            title="Send email from E-Cell mail (ecell@jec.ac.in)"
+                                                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition"
+                                                        >
+                                                            <Send size={13} />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         onClick={() => onSelectCandidate(c)}
                                                         title="View Profile"

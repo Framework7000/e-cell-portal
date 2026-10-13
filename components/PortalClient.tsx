@@ -397,6 +397,8 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                 onSelectCandidate={(c) => setSelectedCandidate(c)}
                                 onEdit={(c) => setEditingCandidate(c)}
                                 onDelete={(c) => setDeletingCandidate(c)}
+                                onSendEmail={handleSendEmail}
+                                isSending={isSendingEmail}
                             />
                         </div>
                     )}

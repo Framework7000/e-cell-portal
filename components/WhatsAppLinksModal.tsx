@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, ExternalLink, Save, CheckCircle2, Link2, Sparkles } from 'lucide-react';
+import { X, ExternalLink, Save, CheckCircle2, Link2, Sparkles, Code2, Palette, Megaphone, Briefcase, FileText, Globe } from 'lucide-react';
 import { DomainWhatsAppLinks, getStoredWhatsAppLinks, saveStoredWhatsAppLinks } from '@/lib/whatsapp-links';
 
 interface Props {
@@ -16,13 +16,13 @@ export default function WhatsAppLinksModal({ isOpen, onClose, onSaved }: Props) 
 
     if (!isOpen) return null;
 
-    const domains: { key: keyof DomainWhatsAppLinks; label: string; icon: string; desc: string }[] = [
-        { key: 'technical', label: 'Technical Domain', icon: '💻', desc: 'Developers, Web & App Development, Tech Operations' },
-        { key: 'design', label: 'Design & Media', icon: '🎨', desc: 'UI/UX, Graphics, Poster Design, Video Editing' },
-        { key: 'marketing', label: 'Marketing & Outreach', icon: '📢', desc: 'Social Media, Brand Growth, Publicity & Campaigns' },
-        { key: 'management', label: 'Management & PR', icon: '🤝', desc: 'Event Operations, Public Relations, Corporate Sponsorships' },
-        { key: 'content', label: 'Content & Editorial', icon: '📝', desc: 'Content Writing, Copywriting, Scripts, Official Press' },
-        { key: 'general', label: 'General / Fallback Community', icon: '🌐', desc: 'Used if applicant domain does not match any specific group' },
+    const domains = [
+        { key: 'technical' as const, label: 'Technical Domain', icon: Code2, desc: 'Developers, Web & App Development, Tech Operations' },
+        { key: 'design' as const, label: 'Design & Media', icon: Palette, desc: 'UI/UX, Graphics, Poster Design, Video Editing' },
+        { key: 'marketing' as const, label: 'Marketing & Outreach', icon: Megaphone, desc: 'Social Media, Brand Growth, Publicity & Campaigns' },
+        { key: 'management' as const, label: 'Management & PR', icon: Briefcase, desc: 'Event Operations, Public Relations, Corporate Sponsorships' },
+        { key: 'content' as const, label: 'Content & Editorial', icon: FileText, desc: 'Content Writing, Copywriting, Scripts, Official Press' },
+        { key: 'general' as const, label: 'General / Fallback Community', icon: Globe, desc: 'Used if applicant domain does not match any specific group' },
     ];
 
     const handleSave = (e: React.FormEvent) => {
@@ -69,11 +69,11 @@ export default function WhatsAppLinksModal({ isOpen, onClose, onSaved }: Props) 
                     </div>
 
                     <div className="space-y-3.5">
-                        {domains.map(({ key, label, icon, desc }) => (
+                        {domains.map(({ key, label, icon: Icon, desc }) => (
                             <div key={key} className="p-3 bg-slate-50/60 rounded-xl border border-slate-200/70 space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                    <label htmlFor={`link-${key}`} className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
-                                        <span>{icon}</span>
+                                    <label htmlFor={`link-${key}`} className="font-semibold text-slate-800 flex items-center gap-2 text-xs">
+                                        <Icon size={14} className="text-emerald-600 shrink-0" />
                                         <span>{label}</span>
                                     </label>
                                     {links[key] && (

@@ -41,7 +41,7 @@ function getEmailHtml(name: string, domain: string, whatsappLink: string): strin
   </div>
   <div class="content">
     <div class="badge">Shortlisted / Selected Candidate</div>
-    <h1>Congratulations, ${name}! 🎉</h1>
+    <h1>Congratulations, ${name}!</h1>
     <p>We are delighted to inform you that your application for the <strong>E-Cell JEC Recruitment Drive</strong> has been reviewed and approved for the next stage.</p>
     
     <div class="highlight-card">
@@ -54,7 +54,7 @@ function getEmailHtml(name: string, domain: string, whatsappLink: string): strin
 
     <div class="btn-container">
       <a href="${whatsappLink}" class="btn-whatsapp" target="_blank">
-        📲 Join ${domain} WhatsApp Group
+        Join ${domain} WhatsApp Group
       </a>
       <div class="link-backup">
         Link not clicking? Open directly: <br>
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
             const targetWaLink = getLinkForDomain(candidate.domain, whatsappLinks);
             const htmlContent = getEmailHtml(candidate.name, candidate.domain, targetWaLink);
-            const subject = `🎉 Congratulations ${candidate.name}! You're Selected for E-Cell JEC (${candidate.domain})`;
+            const subject = `Congratulations ${candidate.name}! Selection Notice for E-Cell JEC (${candidate.domain})`;
 
             let emailSent = false;
             let sendError = '';
@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
                 try {
                     await transporter.sendMail({
                         from: `"E-Cell JEC Recruitment" <${smtpUser}>`,
+                        replyTo: 'ecell@jec.ac.in',
                         to: candidate.email,
                         subject,
                         html: htmlContent,
