@@ -2,17 +2,24 @@ import { google } from 'googleapis';
 
 let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 
+// Accepts the key however a host stores it: wrapped in quotes, with literal "\\n",
+// with real newlines, or with Windows line endings.
+export function normalizePrivateKey(raw?: string) {
+    return (raw || '')
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/\\n/g, '\n')
+        .replace(/\r/g, '')
+        .trim();
+}
+
 export function getGoogleSheetsClient() {
     if (sheetsClient) {
         return { sheets: sheetsClient, spreadsheetId: process.env.GOOGLE_SHEET_ID };
     }
 
     const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-    const rawKey = process.env.GOOGLE_PRIVATE_KEY || '';
-    const privateKey = rawKey
-        .trim()
-        .replace(/^["']|["']$/g, '')
-        .replace(/\\n/g, '\n');
+    const privateKey = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     if (!clientEmail || !privateKey || !spreadsheetId) {
@@ -27,7 +34,7 @@ export function getGoogleSheetsClient() {
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    sheetsClient = google.sheets({ version: 'v4', auth: authClient });
+    sheetsClient = google.sheets({ version: 'v4', auth: authClient, timeout: 8000 });
     return { sheets: sheetsClient, spreadsheetId };
 }
 
