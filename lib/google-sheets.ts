@@ -107,16 +107,112 @@ export async function updateApplicationStatusInSheet(
 ) {
     try {
         const { sheets, spreadsheetId } = getGoogleSheetsClient();
-        const values = [[status, notes || '']];
-        await sheets.spreadsheets.values.update({
-            spreadsheetId,
-            range: `Sheet1!M${rowIndex}:N${rowIndex}`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values },
-        });
+        if (notes === undefined) {
+            // Only status changed: leave reviewer notes (column N) untouched
+            await sheets.spreadsheets.values.update({
+                spreadsheetId,
+                range: `Sheet1!M${rowIndex}`,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [[status]] },
+            });
+        } else {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId,
+                range: `Sheet1!M${rowIndex}:N${rowIndex}`,
+                valueInputOption: 'USER_ENTERED',
+                requestBody: { values: [[status, notes]] },
+            });
+        }
         return { success: true };
     } catch (err: any) {
         console.error(`Error updating application row ${rowIndex} in Google Sheet:`, err?.message || err);
         throw err;
     }
+}
+
+export interface EditableFields {
+    name: string;
+    enrollment: string;
+    email: string;
+    phone: string;
+    whatsapp: string;
+    branch: string;
+    year: string;
+    domain: string;
+    reason: string;
+    source: string;
+}
+
+// Safety guard: make sure the row at rowIndex still belongs to the expected record id
+// (rows shift after deletions/inserts, so a stale rowIndex must never touch the wrong person)
+async function assertRowMatchesId(rowIndex: number, id: string) {
+    const { sheets, spreadsheetId } = getGoogleSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `Sheet1!A${rowIndex}:A${rowIndex}`,
+    });
+    const current = (res.data.values?.[0]?.[0] || '').toString();
+    if (id && !id.startsWith('sheet-row-') && current !== id) {
+        throw new Error('Row has changed since last sync. Please press Sync and try again.');
+    }
+}
+
+// Edit candidate details (columns B:K). Keeps id, submitted date, status & notes untouched.
+export async function updateApplicationDetailsInSheet(
+    rowIndex: number,
+    id: string,
+    fields: EditableFields
+) {
+    await assertRowMatchesId(rowIndex, id);
+    const { sheets, spreadsheetId } = getGoogleSheetsClient();
+    await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Sheet1!B${rowIndex}:K${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+            values: [[
+                fields.name,
+                fields.enrollment,
+                fields.email,
+                fields.phone,
+                fields.whatsapp,
+                fields.branch,
+                fields.year,
+                fields.domain,
+                fields.reason,
+                fields.source,
+            ]],
+        },
+    });
+    return { success: true };
+}
+
+// Permanently delete a candidate row from Sheet1
+export async function deleteApplicationRowFromSheet(rowIndex: number, id: string) {
+    await assertRowMatchesId(rowIndex, id);
+    const { sheets, spreadsheetId } = getGoogleSheetsClient();
+
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const sheet = meta.data.sheets?.find((s) => s.properties?.title === 'Sheet1');
+    const sheetId = sheet?.properties?.sheetId;
+    if (sheetId === undefined || sheetId === null) {
+        throw new Error('Sheet1 tab not found');
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+            requests: [{
+                deleteDimension: {
+                    range: {
+                        sheetId,
+                        dimension: 'ROWS',
+                        startIndex: rowIndex - 1,
+                        endIndex: rowIndex,
+                    },
+                },
+            }],
+        },
+    });
+    return { success: true };
 }

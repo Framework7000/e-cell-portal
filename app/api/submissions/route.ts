@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchApplicationsFromSheet, updateApplicationStatusInSheet, getGoogleSheetsClient } from '@/lib/google-sheets';
+import {
+    fetchApplicationsFromSheet,
+    updateApplicationStatusInSheet,
+    updateApplicationDetailsInSheet,
+    deleteApplicationRowFromSheet,
+    getGoogleSheetsClient,
+} from '@/lib/google-sheets';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -79,6 +85,70 @@ export async function PATCH(request: NextRequest) {
         console.error('API /api/submissions PATCH error:', err);
         return NextResponse.json(
             { success: false, error: err?.message || 'Failed to update submission' },
+            { status: 500 }
+        );
+    }
+}
+
+// Edit candidate details
+export async function PUT(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { rowIndex, id, fields } = body;
+
+        if (!rowIndex || typeof rowIndex !== 'number' || !fields) {
+            return NextResponse.json(
+                { success: false, error: 'rowIndex and fields are required' },
+                { status: 400 }
+            );
+        }
+        if (!fields.name?.toString().trim()) {
+            return NextResponse.json({ success: false, error: 'Name is required' }, { status: 400 });
+        }
+
+        const clean = (v: unknown) => (v ?? '').toString().trim();
+        await updateApplicationDetailsInSheet(rowIndex, clean(id), {
+            name: clean(fields.name),
+            enrollment: clean(fields.enrollment).toUpperCase(),
+            email: clean(fields.email).toLowerCase(),
+            phone: clean(fields.phone).replace(/\D/g, '').slice(0, 10),
+            whatsapp: clean(fields.whatsapp).replace(/\D/g, '').slice(0, 10),
+            branch: clean(fields.branch),
+            year: clean(fields.year),
+            domain: clean(fields.domain),
+            reason: clean(fields.reason),
+            source: clean(fields.source),
+        });
+
+        return NextResponse.json({ success: true, message: `Row ${rowIndex} updated` });
+    } catch (err: any) {
+        console.error('API /api/submissions PUT error:', err);
+        return NextResponse.json(
+            { success: false, error: err?.message || 'Failed to edit candidate' },
+            { status: 500 }
+        );
+    }
+}
+
+// Delete candidate
+export async function DELETE(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { rowIndex, id } = body;
+
+        if (!rowIndex || typeof rowIndex !== 'number') {
+            return NextResponse.json(
+                { success: false, error: 'Valid rowIndex is required' },
+                { status: 400 }
+            );
+        }
+
+        await deleteApplicationRowFromSheet(rowIndex, (id ?? '').toString());
+        return NextResponse.json({ success: true, message: `Row ${rowIndex} deleted` });
+    } catch (err: any) {
+        console.error('API /api/submissions DELETE error:', err);
+        return NextResponse.json(
+            { success: false, error: err?.message || 'Failed to delete candidate' },
             { status: 500 }
         );
     }

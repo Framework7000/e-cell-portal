@@ -7,6 +7,8 @@ import AnalyticsCharts from '@/components/AnalyticsCharts';
 import SubmissionsTable from '@/components/SubmissionsTable';
 import CandidateModal from '@/components/CandidateModal';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import EditCandidateModal, { EditFormValues } from '@/components/EditCandidateModal';
+import DeleteConfirmModal from '@/components/DeleteConfirmModal';
 import { ApplicationRecord } from '@/lib/google-sheets';
 import { ShieldAlert, RefreshCw, FileSpreadsheet, Users, Filter, CheckCircle2 } from 'lucide-react';
 
@@ -23,6 +25,8 @@ export default function PortalClient({ initialSubmissions }: Props) {
     );
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const [selectedCandidate, setSelectedCandidate] = useState<ApplicationRecord | null>(null);
+    const [editingCandidate, setEditingCandidate] = useState<ApplicationRecord | null>(null);
+    const [deletingCandidate, setDeletingCandidate] = useState<ApplicationRecord | null>(null);
 
     const pendingCount = submissions.filter(
         (s) => !s.status || s.status.toLowerCase() === 'pending'
@@ -100,6 +104,31 @@ export default function PortalClient({ initialSubmissions }: Props) {
         }
     };
 
+    // Edit candidate details (writes to Google Sheets, then re-syncs)
+    const handleEditSave = async (candidate: ApplicationRecord, values: EditFormValues) => {
+        const res = await fetch('/api/submissions', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rowIndex: candidate.rowIndex, id: candidate.id, fields: values }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to edit candidate');
+        await loadSubmissions();
+    };
+
+    // Delete candidate (removes the sheet row, then re-syncs so row numbers stay correct)
+    const handleDeleteConfirm = async (candidate: ApplicationRecord) => {
+        const res = await fetch('/api/submissions', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rowIndex: candidate.rowIndex, id: candidate.id }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || 'Failed to delete candidate');
+        if (selectedCandidate?.id === candidate.id) setSelectedCandidate(null);
+        await loadSubmissions();
+    };
+
     return (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex">
             {/* Left Panel Sidebar on Desktop (Spacious, Systematic & Highly Professional) */}
@@ -173,6 +202,8 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                     onStatusChange={handleStatusChange}
                                     onRefresh={loadSubmissions}
                                     isRefreshing={isRefreshing}
+                                    onEdit={(c) => setEditingCandidate(c)}
+                                    onDelete={(c) => setDeletingCandidate(c)}
                                 />
                             </div>
                         </div>
@@ -204,6 +235,8 @@ export default function PortalClient({ initialSubmissions }: Props) {
                                 onStatusChange={handleStatusChange}
                                 onRefresh={loadSubmissions}
                                 isRefreshing={isRefreshing}
+                                onEdit={(c) => setEditingCandidate(c)}
+                                onDelete={(c) => setDeletingCandidate(c)}
                             />
                         </div>
                     )}
@@ -281,6 +314,17 @@ export default function PortalClient({ initialSubmissions }: Props) {
                 candidate={selectedCandidate}
                 onClose={() => setSelectedCandidate(null)}
                 onStatusChange={handleStatusChange}
+            />
+
+            <EditCandidateModal
+                candidate={editingCandidate}
+                onClose={() => setEditingCandidate(null)}
+                onSave={handleEditSave}
+            />
+            <DeleteConfirmModal
+                candidate={deletingCandidate}
+                onClose={() => setDeletingCandidate(null)}
+                onConfirm={handleDeleteConfirm}
             />
 
             {/* Mobile Bottom Navigation Bar (<RULE[user_global]>) */}

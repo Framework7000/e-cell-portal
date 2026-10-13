@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, Download, ExternalLink, MessageSquare, Phone, MoreHorizontal, Eye, CheckCircle2, Clock, XCircle, ArrowUpDown, RefreshCw, Send } from 'lucide-react';
+import { Search, Filter, Download, ExternalLink, MessageSquare, Phone, MoreHorizontal, Eye, CheckCircle2, Clock, XCircle, ArrowUpDown, RefreshCw, Send, Pencil, Trash2 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
     onStatusChange: (rowIndex: number, newStatus: ApplicationRecord['status']) => Promise<void>;
     onRefresh: () => Promise<void>;
     isRefreshing: boolean;
+    onEdit?: (candidate: ApplicationRecord) => void;
+    onDelete?: (candidate: ApplicationRecord) => void;
 }
 
 export default function SubmissionsTable({
@@ -18,6 +20,8 @@ export default function SubmissionsTable({
     onStatusChange,
     onRefresh,
     isRefreshing,
+    onEdit,
+    onDelete,
 }: Props) {
     const [search, setSearch] = useState('');
     const [domainFilter, setDomainFilter] = useState('all');
@@ -345,6 +349,26 @@ export default function SubmissionsTable({
                                                 >
                                                     <Eye size={13} />
                                                 </button>
+                                                {onEdit && (
+                                                    <button
+                                                        onClick={() => onEdit(c)}
+                                                        title="Edit candidate"
+                                                        aria-label="Edit candidate"
+                                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                    >
+                                                        <Pencil size={13} />
+                                                    </button>
+                                                )}
+                                                {onDelete && (
+                                                    <button
+                                                        onClick={() => onDelete(c)}
+                                                        title="Delete candidate"
+                                                        aria-label="Delete candidate"
+                                                        className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                    >
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
