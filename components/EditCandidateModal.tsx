@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, Sparkles } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
+import { countWords, countCharacters } from '@/lib/data-sanitization';
 
 export interface EditFormValues {
     name: string;
@@ -15,6 +16,7 @@ export interface EditFormValues {
     domain: string;
     reason: string;
     source: string;
+    idea?: string;
 }
 
 interface Props {
@@ -48,6 +50,7 @@ export default function EditCandidateModal({ candidate, onClose, onSave }: Props
                 domain: candidate.domain || '',
                 reason: candidate.reason === 'No statement provided' ? '' : candidate.reason || '',
                 source: candidate.source || '',
+                idea: candidate.idea || '',
             });
             setError(null);
         }
@@ -67,6 +70,14 @@ export default function EditCandidateModal({ candidate, onClose, onSave }: Props
         }
         if (values.phone && values.phone.replace(/\D/g, '').length !== 10) {
             setError('Phone must be 10 digits');
+            return;
+        }
+        if (values.reason && countWords(values.reason) > 100) {
+            setError('Reason must be 100 words or less');
+            return;
+        }
+        if (values.idea && countWords(values.idea) > 100) {
+            setError('Idea must be 100 words or less');
             return;
         }
         setSaving(true);
@@ -164,7 +175,46 @@ export default function EditCandidateModal({ candidate, onClose, onSave }: Props
                     </div>
                     <div className="sm:col-span-2">
                         <label className={labelCls}>Why do you want to join E-Cell?</label>
-                        <textarea rows={3} className={inputCls} placeholder="Candidate's statement / motivation for joining E-Cell..." value={values.reason} onChange={set('reason')} />
+                        <textarea
+                            rows={3}
+                            className={inputCls}
+                            placeholder="Candidate's statement / motivation for joining E-Cell..."
+                            value={values.reason}
+                            onChange={set('reason')}
+                            maxLength={600}
+                        />
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
+                            <span>Max 100 words / 600 characters</span>
+                            <span className="font-mono">
+                                {countWords(values.reason || '')} words / {countCharacters(values.reason || '')} chars
+                            </span>
+                        </div>
+                    </div>
+                    <div>
+                        <label className={labelCls}>How did you hear about us?</label>
+                        <input className={inputCls} placeholder="e.g. Instagram, WhatsApp, Friends, Campus posters" value={values.source} onChange={set('source')} />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <div className="flex items-center gap-2 mb-1">
+                            <label className={labelCls}>Share idea you would like to implement in E-Cell</label>
+                            <span className="text-[9px] font-medium bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded border border-orange-200">
+                                Initiative
+                            </span>
+                        </div>
+                        <textarea
+                            rows={3}
+                            className={inputCls}
+                            placeholder="Share your innovative idea..."
+                            value={values.idea || ''}
+                            onChange={set('idea')}
+                            maxLength={600}
+                        />
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-slate-500">
+                            <span>Max 100 words / 600 characters</span>
+                            <span className="font-mono">
+                                {countWords(values.idea || '')} words / {countCharacters(values.idea || '')} chars
+                            </span>
+                        </div>
                     </div>
                 </div>
 

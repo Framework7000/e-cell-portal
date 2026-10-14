@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { sanitizeSourceField, sanitizeReasonField, validateTimestamp, sanitizeEditableFields } from './data-sanitization';
 
 let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 
@@ -54,6 +55,7 @@ export interface ApplicationRecord {
     created_at: string;
     status: 'pending' | 'shortlisted' | 'interviewed' | 'selected' | 'rejected';
     notes?: string;
+    idea?: string;
 }
 
 // Fetch all applications directly from the Google Sheets document
@@ -62,7 +64,7 @@ export async function fetchApplicationsFromSheet(): Promise<ApplicationRecord[]>
         const { sheets, spreadsheetId } = getGoogleSheetsClient();
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: 'Sheet1!A:N', // Extended to include status & reviewer notes if present
+            range: 'Sheet1!A:P', // Extended to include status, reviewer notes, and idea field
         });
 
         const rows = response.data.values || [];
@@ -75,12 +77,22 @@ export async function fetchApplicationsFromSheet(): Promise<ApplicationRecord[]>
                 return Boolean(row && (row[1] || row[3] || row[4]));
             })
             .map(({ row, index }) => {
-                const rawStatus = (row[12] || '').toString().toLowerCase().trim();
+                const rawStatus = (row[13] || '').toString().toLowerCase().trim();
                 let status: ApplicationRecord['status'] = 'pending';
                 if (['shortlisted', 'shortlist'].includes(rawStatus)) status = 'shortlisted';
                 else if (['interviewed', 'interview'].includes(rawStatus)) status = 'interviewed';
                 else if (['selected', 'accepted', 'approved'].includes(rawStatus)) status = 'selected';
                 else if (['rejected', 'declined'].includes(rawStatus)) status = 'rejected';
+
+                // Sanitize fields to prevent column shift issues
+                const rawReason = (row[9] || '').toString();
+                const rawIdea = (row[10] || '').toString();
+                const rawSource = (row[11] || '').toString();
+                const rawTimestamp = (row[12] || '').toString();
+
+                // Validate timestamp - if invalid, it might be shifted data
+                const timestampValidation = validateTimestamp(rawTimestamp);
+                const sanitizedTimestamp = timestampValidation.isValid ? rawTimestamp : new Date().toISOString();
 
                 return {
                     id: row[0] || `sheet-row-${index + 1}`,
@@ -93,11 +105,12 @@ export async function fetchApplicationsFromSheet(): Promise<ApplicationRecord[]>
                     branch: row[6] || 'General',
                     year: row[7] || '1',
                     domain: row[8] || 'General Member',
-                    reason: row[9] || 'No statement provided',
-                    source: row[10] || 'Direct / Campus',
-                    created_at: row[11] || new Date().toISOString(),
-                    status,
-                    notes: row[13] || '',
+                    reason: sanitizeReasonField(rawReason),
+                    idea: sanitizeReasonField(rawIdea), // Column L - Share idea field
+                    source: sanitizeSourceField(rawSource), // Column M - How did you hear about us
+                    created_at: sanitizedTimestamp,
+                    status: row[13] || 'pending',
+                    notes: row[14] || '',
                 };
             });
     } catch (err: any) {
@@ -118,14 +131,14 @@ export async function updateApplicationStatusInSheet(
             // Only status changed: leave reviewer notes (column N) untouched
             await sheets.spreadsheets.values.update({
                 spreadsheetId,
-                range: `Sheet1!M${rowIndex}`,
+                range: `Sheet1!N${rowIndex}`,
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values: [[status]] },
             });
         } else {
             await sheets.spreadsheets.values.update({
                 spreadsheetId,
-                range: `Sheet1!M${rowIndex}:N${rowIndex}`,
+                range: `Sheet1!N${rowIndex}:O${rowIndex}`,
                 valueInputOption: 'USER_ENTERED',
                 requestBody: { values: [[status, notes]] },
             });
@@ -148,6 +161,7 @@ export interface EditableFields {
     domain: string;
     reason: string;
     source: string;
+    idea?: string;
 }
 
 // Safety guard: make sure the row at rowIndex still belongs to the expected record id
@@ -164,7 +178,7 @@ async function assertRowMatchesId(rowIndex: number, id: string) {
     }
 }
 
-// Edit candidate details (columns B:K). Keeps id, submitted date, status & notes untouched.
+// Edit candidate details (columns B:L for basic fields including idea). Keeps id, submitted date, status & notes untouched.
 export async function updateApplicationDetailsInSheet(
     rowIndex: number,
     id: string,
@@ -172,25 +186,33 @@ export async function updateApplicationDetailsInSheet(
 ) {
     await assertRowMatchesId(rowIndex, id);
     const { sheets, spreadsheetId } = getGoogleSheetsClient();
+
+    // Sanitize fields before writing to prevent column shift
+    const sanitizedFields = sanitizeEditableFields(fields);
+
+    // Update basic fields (B:L) - includes idea field
+    // Order: name, enrollment, email, phone, whatsapp, branch, year, domain, reason, idea, source
     await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `Sheet1!B${rowIndex}:K${rowIndex}`,
+        range: `Sheet1!B${rowIndex}:L${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
             values: [[
-                fields.name,
-                fields.enrollment,
-                fields.email,
-                fields.phone,
-                fields.whatsapp,
-                fields.branch,
-                fields.year,
-                fields.domain,
-                fields.reason,
-                fields.source,
+                sanitizedFields.name,
+                sanitizedFields.enrollment,
+                sanitizedFields.email,
+                sanitizedFields.phone,
+                sanitizedFields.whatsapp,
+                sanitizedFields.branch,
+                sanitizedFields.year,
+                sanitizedFields.domain,
+                sanitizedFields.reason,
+                sanitizedFields.idea,
+                sanitizedFields.source,
             ]],
         },
     });
+
     return { success: true };
 }
 
@@ -291,12 +313,12 @@ export async function bulkUpdateApplicationStatusInSheet(
 
         if (u.notes !== undefined) {
             data.push({
-                range: `Sheet1!M${actualRow}:N${actualRow}`,
+                range: `Sheet1!N${actualRow}:O${actualRow}`,
                 values: [[u.status, u.notes]],
             });
         } else {
             data.push({
-                range: `Sheet1!M${actualRow}`,
+                range: `Sheet1!N${actualRow}`,
                 values: [[u.status]],
             });
         }

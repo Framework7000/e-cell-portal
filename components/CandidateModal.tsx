@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Phone, Mail, MessageSquare, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle, FileText, Send, HelpCircle } from 'lucide-react';
+import { X, Phone, Mail, MessageSquare, ExternalLink, Calendar, CheckCircle2, Clock, AlertCircle, FileText, Send, HelpCircle, Sparkles } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 import { formatIndianDateTime } from '@/lib/date-utils';
+import { truncateForDisplay, validateTimestamp } from '@/lib/data-sanitization';
 
 interface Props {
     candidate: ApplicationRecord | null;
@@ -57,7 +58,7 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                                 </span>
                             </div>
                             <p className="text-[11px] text-slate-500">
-                                {candidate.branch} • Year {candidate.year} • Applied via {candidate.source}
+                                {candidate.branch} • Year {candidate.year} • Applied via {truncateForDisplay(candidate.source, 30)}
                             </p>
                         </div>
                     </div>
@@ -108,7 +109,11 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                         </div>
                         <div>
                             <span className="text-slate-400 uppercase tracking-tight block text-[10px] mb-0.5">Submission Time (IST)</span>
-                            <span className="font-mono text-slate-700">{formatIndianDateTime(candidate.created_at)}</span>
+                            <span className="font-mono text-slate-700">
+                                {validateTimestamp(candidate.created_at).isValid 
+                                    ? formatIndianDateTime(candidate.created_at) 
+                                    : 'Timestamp Missing'}
+                            </span>
                         </div>
                         <div>
                             <span className="text-slate-400 uppercase tracking-tight block text-[10px] mb-0.5">Email</span>
@@ -131,6 +136,20 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                         </div>
                     </div>
 
+                    {/* Share idea you would like to implement in E-Cell */}
+                    <div>
+                        <div className="flex items-center gap-1.5 mb-1 text-slate-700 font-semibold text-[11px]">
+                            <Sparkles size={13} className="text-slate-500" />
+                            <span>Share idea you would like to implement in E-Cell</span>
+                            <span className="text-[9px] font-medium bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded border border-orange-200">
+                                Initiative
+                            </span>
+                        </div>
+                        <div className="p-3 bg-white border border-slate-200 rounded-lg text-slate-700 leading-relaxed whitespace-pre-wrap text-[11px]">
+                            {candidate.idea || 'No idea shared by candidate.'}
+                        </div>
+                    </div>
+
                     {/* How did you hear about us? */}
                     <div>
                         <div className="flex items-center gap-1.5 mb-1 text-slate-700 font-semibold text-[11px]">
@@ -138,7 +157,7 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                             <span>How did you hear about us?</span>
                         </div>
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium text-[11px]">
-                            {candidate.source || 'Direct / Campus'}
+                            {truncateForDisplay(candidate.source, 30) || 'Direct / Campus'}
                         </div>
                     </div>
 

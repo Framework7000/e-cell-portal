@@ -138,6 +138,7 @@ export async function PUT(request: NextRequest) {
             domain: clean(fields.domain),
             reason: clean(fields.reason),
             source: clean(fields.source),
+            idea: clean(fields.idea),
         });
 
         return NextResponse.json({ success: true, message: `Row ${rowIndex} updated` });

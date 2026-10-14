@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ApplicationRecord } from '@/lib/google-sheets';
 import { formatIndianDateTime } from '@/lib/date-utils';
+import { validateTimestamp } from '@/lib/data-sanitization';
 
 interface Props {
     submissions: ApplicationRecord[];
@@ -163,7 +164,7 @@ export default function SubmissionsTable({
 
     // CSV Export
     const exportCSV = () => {
-        const headers = ['Row ID', 'Name', 'Enrollment', 'Email', 'Phone', 'WhatsApp', 'Branch', 'Year', 'Domain', 'Status', 'Applied At', 'Reason'];
+        const headers = ['Row ID', 'Name', 'Enrollment', 'Email', 'Phone', 'WhatsApp', 'Branch', 'Year', 'Domain', 'Status', 'Applied At', 'Reason', 'Idea'];
         const rows = filtered.map((c) => [
             c.id,
             `"${c.name.replace(/"/g, '""')}"`,
@@ -177,6 +178,7 @@ export default function SubmissionsTable({
             c.status,
             `"${formatIndianDateTime(c.created_at)}"`,
             `"${(c.reason || '').replace(/"/g, '""')}"`,
+            `"${(c.idea || '').replace(/"/g, '""')}"`,
         ]);
 
         const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
@@ -463,7 +465,9 @@ export default function SubmissionsTable({
                                                         {c.name}
                                                     </span>
                                                     <span className="text-[10px] text-slate-400 mono-num">
-                                                        {formatIndianDateTime(c.created_at)}
+                                                        {validateTimestamp(c.created_at).isValid 
+                                                            ? formatIndianDateTime(c.created_at) 
+                                                            : 'Timestamp Missing'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -599,7 +603,7 @@ export default function SubmissionsTable({
                     )}
                 </div>
                 <div className="flex items-center gap-3 mono-num text-[10px]">
-                    <span>Source: Sheet1!A:N</span>
+                    <span>Source: Sheet1!A:P</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
                 </div>
             </div>
