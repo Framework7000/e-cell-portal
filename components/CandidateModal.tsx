@@ -160,7 +160,7 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                             <span>How did you hear about us?</span>
                         </div>
                         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium text-[11px] truncate" title={candidate.source}>
-                            {(candidate.source || 'Direct / Campus').slice(0, 40)}
+                            {(candidate.source || 'Direct / Campus').slice(0, 60)}
                         </div>
                     </div>
 
