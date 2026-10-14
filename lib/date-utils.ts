@@ -1,14 +1,21 @@
 /**
  * Formats a timestamp into Indian Standard Time (IST - Asia/Kolkata).
  * Handles:
- * 1. ISO strings with Z or offsets (e.g. 2026-10-13T20:03:20.000Z)
- * 2. Epoch numbers (e.g. 1791920000000)
- * 3. Already-formatted Indian dates: DD/MM/YYYY, hh:mm:ss am/pm
+ * 1. Already-formatted Indian dates: DD/MM/YYYY, hh:mm:ss am/pm
+ * 2. ISO strings with Z or offsets (e.g. 2026-10-13T20:03:20.000Z)
+ * 3. Numeric epoch numbers (e.g. 1791920000000)
  * 4. Any valid Date parsable string
+ * If value is missing or non-date text (e.g. 'Freinds'), strictly returns 'Timestamp Missing'.
  */
 export function formatIndianDateTime(raw?: string): string {
-    if (!raw) return 'N/A';
+    if (!raw) return 'Timestamp Missing';
     const trimmed = raw.trim();
+    if (!trimmed) return 'Timestamp Missing';
+
+    // Guard: If it contains letters with no digits or no date delimiters, it's not a timestamp (e.g. "Freinds", "Social media")
+    if (!/\d/.test(trimmed)) {
+        return 'Timestamp Missing';
+    }
 
     // 1. If it's already in Indian format "DD/MM/YYYY, HH:MM:SS am/pm"
     const indianMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:,\s*|\s+)(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
@@ -40,20 +47,22 @@ export function formatIndianDateTime(raw?: string): string {
         }
     }
 
-    // 3. ISO or Date string
-    const d = new Date(trimmed);
-    if (!isNaN(d.getTime())) {
-        return d.toLocaleString('en-IN', {
-            timeZone: 'Asia/Kolkata',
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true,
-        });
+    // 3. ISO or Date string (only if it has valid year/month structure)
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed) || /^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/.test(trimmed)) {
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+            });
+        }
     }
 
-    return trimmed;
+    return 'Timestamp Missing';
 }

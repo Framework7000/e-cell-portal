@@ -270,9 +270,15 @@ export default function SelectedCandidatesTable({
                                                         <span className="font-semibold text-slate-900 block leading-tight hover:text-emerald-700 transition">
                                                             {c.name}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400 font-mono">
-                                                            {formatIndianDateTime(c.created_at)}
-                                                        </span>
+                                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                                            <span className="text-slate-500 font-medium truncate max-w-[130px]" title={c.source}>
+                                                                {c.source || 'Direct / Campus'}
+                                                            </span>
+                                                            <span className="text-slate-300">•</span>
+                                                            <span className="font-mono">
+                                                                {formatIndianDateTime(c.created_at)}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>

@@ -57,8 +57,11 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                                     {candidate.enrollment || 'No Enrollment'}
                                 </span>
                             </div>
-                            <p className="text-[11px] text-slate-500">
-                                {candidate.branch} • Year {candidate.year} • Applied via {truncateForDisplay(candidate.source, 30)}
+                            <p className="text-[11px] text-slate-500 flex items-center gap-1 flex-wrap">
+                                <span>{candidate.branch} • Year {candidate.year} • Applied via</span>
+                                <span className="font-medium text-slate-700 truncate max-w-[180px] inline-block align-bottom" title={candidate.source}>
+                                    {(candidate.source || 'Direct / Campus').slice(0, 30)}
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -156,8 +159,8 @@ export default function CandidateModal({ candidate, onClose, onStatusChange }: P
                             <HelpCircle size={13} className="text-slate-500" />
                             <span>How did you hear about us?</span>
                         </div>
-                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium text-[11px]">
-                            {truncateForDisplay(candidate.source, 30) || 'Direct / Campus'}
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 font-medium text-[11px] truncate" title={candidate.source}>
+                            {(candidate.source || 'Direct / Campus').slice(0, 40)}
                         </div>
                     </div>
 

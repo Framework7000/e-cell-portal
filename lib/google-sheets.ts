@@ -58,13 +58,23 @@ export interface ApplicationRecord {
     idea?: string;
 }
 
+// Helper to test if a string matches an Indian or ISO timestamp pattern
+function isTimestampValue(val?: any): boolean {
+    if (!val) return false;
+    const s = String(val).trim();
+    if (!/\d/.test(s)) return false;
+    return /^(\d{1,2})\/(\d{1,2})\/(\d{4})/i.test(s) || 
+           /^\d{4}-\d{2}-\d{2}/.test(s) || 
+           (/^\d{10,13}$/.test(s) && !isNaN(Number(s)));
+}
+
 // Fetch all applications directly from the Google Sheets document
 export async function fetchApplicationsFromSheet(): Promise<ApplicationRecord[]> {
     try {
         const { sheets, spreadsheetId } = getGoogleSheetsClient();
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: 'Sheet1!A:P', // Extended to include status, reviewer notes, and idea field
+            range: 'Sheet1!A:O', // Covers both aligned A:N and legacy shifted columns
         });
 
         const rows = response.data.values || [];
@@ -77,40 +87,51 @@ export async function fetchApplicationsFromSheet(): Promise<ApplicationRecord[]>
                 return Boolean(row && (row[1] || row[3] || row[4]));
             })
             .map(({ row, index }) => {
-                const rawStatus = (row[13] || '').toString().toLowerCase().trim();
+                // Detect whether this row experienced the 13-column shift:
+                // Shifted legacy row: Col 12 (row[12]) is timestamp, Col 11 (row[11]) is source ("Freinds"), Col 10 (row[10]) is idea
+                // Normal aligned row: Col 11 (row[11]) is timestamp, Col 10 (row[10]) is source, Col 9 (row[9]) is reason
+                const isShifted = isTimestampValue(row[12]) && !isTimestampValue(row[11]);
+
+                let rawReason = (row[9] || '').toString().trim();
+                let rawIdea = isShifted ? (row[10] || '').toString().trim() : '';
+                let rawSource = (isShifted ? row[11] : row[10]) || 'Direct / Campus';
+                let rawCreatedAt = (isShifted ? row[12] : row[11]) || '';
+                const rawStatusStr = ((isShifted ? row[13] : row[12]) || '').toString().toLowerCase().trim();
+                const rawNotes = ((isShifted ? row[14] : row[13]) || '').toString().trim();
+
+                // If shifted, combine idea into reason if not already present
+                if (isShifted && rawIdea && !rawReason.includes(rawIdea)) {
+                    rawReason = rawReason
+                        ? `${rawReason}\n\n[Idea for E-Cell]:\n${rawIdea}`
+                        : `[Idea for E-Cell]:\n${rawIdea}`;
+                }
+
                 let status: ApplicationRecord['status'] = 'pending';
-                if (['shortlisted', 'shortlist'].includes(rawStatus)) status = 'shortlisted';
-                else if (['interviewed', 'interview'].includes(rawStatus)) status = 'interviewed';
-                else if (['selected', 'accepted', 'approved'].includes(rawStatus)) status = 'selected';
-                else if (['rejected', 'declined'].includes(rawStatus)) status = 'rejected';
+                if (['shortlisted', 'shortlist'].includes(rawStatusStr)) status = 'shortlisted';
+                else if (['interviewed', 'interview'].includes(rawStatusStr)) status = 'interviewed';
+                else if (['selected', 'accepted', 'approved'].includes(rawStatusStr)) status = 'selected';
+                else if (['rejected', 'declined'].includes(rawStatusStr)) status = 'rejected';
 
-                // Sanitize fields to prevent column shift issues
-                const rawReason = (row[9] || '').toString();
-                const rawIdea = (row[10] || '').toString();
-                const rawSource = (row[11] || '').toString();
-                const rawTimestamp = (row[12] || '').toString();
-
-                // Validate timestamp - if invalid, it might be shifted data
-                const timestampValidation = validateTimestamp(rawTimestamp);
-                const sanitizedTimestamp = timestampValidation.isValid ? rawTimestamp : new Date().toISOString();
+                // Truncate source defensively to max 30 chars for UI safety
+                const cleanSource = rawSource.toString().replace(/[\r\n\t]+/g, ' ').trim().slice(0, 30);
 
                 return {
                     id: row[0] || `sheet-row-${index + 1}`,
                     rowIndex: index + 1,
-                    name: row[1] || 'Anonymous Applicant',
-                    enrollment: row[2] || 'N/A',
-                    email: row[3] || '',
-                    phone: row[4] || '',
-                    whatsapp: row[5] || row[4] || '',
-                    branch: row[6] || 'General',
-                    year: row[7] || '1',
-                    domain: row[8] || 'General Member',
-                    reason: sanitizeReasonField(rawReason),
-                    idea: sanitizeReasonField(rawIdea), // Column L - Share idea field
-                    source: sanitizeSourceField(rawSource), // Column M - How did you hear about us
-                    created_at: sanitizedTimestamp,
-                    status: row[13] || 'pending',
-                    notes: row[14] || '',
+                    name: (row[1] || 'Anonymous Applicant').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    enrollment: (row[2] || 'N/A').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    email: (row[3] || '').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    phone: (row[4] || '').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    whatsapp: (row[5] || row[4] || '').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    branch: (row[6] || 'General').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    year: (row[7] || '1').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    domain: (row[8] || 'General Member').toString().replace(/[\r\n\t]+/g, ' ').trim(),
+                    reason: rawReason || 'No statement provided',
+                    idea: rawIdea,
+                    source: cleanSource || 'Direct / Campus',
+                    created_at: rawCreatedAt || 'Timestamp Missing',
+                    status,
+                    notes: rawNotes,
                 };
             });
     } catch (err: any) {

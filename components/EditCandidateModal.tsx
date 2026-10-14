@@ -171,7 +171,7 @@ export default function EditCandidateModal({ candidate, onClose, onSave }: Props
                     </div>
                     <div>
                         <label className={labelCls}>How did you hear about us?</label>
-                        <input className={inputCls} placeholder="e.g. Instagram, WhatsApp, Friends, Campus posters" value={values.source} onChange={set('source')} />
+                        <input maxLength={40} className={inputCls} placeholder="e.g. Instagram, WhatsApp, Friends, Campus posters" value={values.source} onChange={set('source')} />
                     </div>
                     <div className="sm:col-span-2">
                         <label className={labelCls}>Why do you want to join E-Cell?</label>
